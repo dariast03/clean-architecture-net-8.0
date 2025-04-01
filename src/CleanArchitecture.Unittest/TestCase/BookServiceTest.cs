@@ -1,9 +1,9 @@
 using System.Linq.Expressions;
 using AutoMapper;
 using CleanArchitecture.Application;
-using CleanArchitecture.Shared.Models;
 using CleanArchitecture.Application.Services;
 using CleanArchitecture.Domain.Entities;
+using CleanArchitecture.Shared.Models;
 using CleanArchitecture.Shared.Models.Book;
 using Moq;
 
@@ -165,7 +165,7 @@ public class BookServiceTest
 
         _unitOfWorkMock.Setup(u => u.BookRepository.AnyAsync(
             It.IsAny<Expression<Func<Book, bool>>>()))
-                       .ReturnsAsync(false);
+                       .ReturnsAsync(true);
 
         _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
 
@@ -195,7 +195,7 @@ public class BookServiceTest
             It.IsAny<Func<IQueryable<Book>, IQueryable<Book>>>()))
                        .ReturnsAsync(bookToDelete);
 
-        //_unitOfWorkMock.Setup(u => u.BookRepository.Delete(It.IsAny<Book>())).Returns(Task.CompletedTask);
+        _unitOfWorkMock.Setup(u => u.BookRepository.Delete(It.IsAny<Book>())).Callback<Book>(book => { });
 
         // Initialize the BookService with the mocked unit of work
         _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
@@ -208,4 +208,139 @@ public class BookServiceTest
             It.IsAny<Expression<Func<Book, bool>>>(),
             It.IsAny<Func<IQueryable<Book>, IQueryable<Book>>>()), Times.Once);
     }
+
+
+    [Fact]
+    public async Task BookService_GetById_InvalidId_ShouldReturnNull()
+    {
+        // Arrange
+        int invalidBookId = -1;
+        _unitOfWorkMock.Setup(u => u.BookRepository.FirstOrDefaultAsync(b => b.Id == invalidBookId, null))
+                       .ReturnsAsync((Book)null);
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act
+        var result = await _bookService.Get(invalidBookId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task BookService_Add_InvalidData_ShouldThrowException()
+    {
+        // Arrange
+        var invalidBookRequest = new AddBookRequest
+        {
+            Title = "", // Empty title
+            Description = new string('A', 10000), // Large string but within practical limits
+            Price = -10 // Negative price
+        };
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await _bookService.Add(invalidBookRequest, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BookService_Update_NonExistentBook_ShouldThrowNotFoundException()
+    {
+        // Arrange
+        var updateRequest = new UpdateBookRequest
+        {
+            Id = 9999, // Non-existent ID
+            Title = "Updated Book",
+            Description = new string('B', 10000), // Large string but within practical limits
+            Price = 25.00
+        };
+        _unitOfWorkMock.Setup(u => u.BookRepository.AnyAsync(It.IsAny<Expression<Func<Book, bool>>>()))
+                       .ReturnsAsync(false);
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
+            await _bookService.Update(updateRequest, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BookService_Delete_NonExistentBook_ShouldThrowNotFoundException()
+    {
+        // Arrange
+        int nonExistentBookId = 9999;
+        _unitOfWorkMock.Setup(u => u.BookRepository.FirstOrDefaultAsync(It.IsAny<Expression<Func<Book, bool>>>(), null))
+                       .ReturnsAsync((Book)null);
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
+            await _bookService.Delete(nonExistentBookId, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BookService_GetById_ZeroId_ShouldReturnNull()
+    {
+        // Arrange
+        int zeroBookId = 0;
+        _unitOfWorkMock.Setup(u => u.BookRepository.FirstOrDefaultAsync(b => b.Id == zeroBookId, null))
+                       .ReturnsAsync((Book)null);
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act
+        var result = await _bookService.Get(zeroBookId);
+
+        // Assert
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task BookService_Update_EmptyTitle_ShouldThrowException()
+    {
+        // Arrange
+        var updateRequest = new UpdateBookRequest
+        {
+            Id = 1,
+            Title = "", // Empty title
+            Description = "Valid Description",
+            Price = 30.00
+        };
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act & Assert
+        await Assert.ThrowsAsync<ArgumentException>(async () =>
+            await _bookService.Update(updateRequest, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task BookService_Add_MaxLengthTitle_ShouldAddSuccessfully()
+    {
+        // Arrange
+        var validBookRequest = new AddBookRequest
+        {
+            Title = new string('C', 4000), // Large string within NVARCHAR(MAX) practical limit
+            Description = "Valid Description",
+            Price = 50.00
+        };
+
+        _unitOfWorkMock.Setup(u => u.BookRepository.AddAsync(It.IsAny<Book>()))
+                       .Returns(Task.CompletedTask);
+
+        _bookService = new BookService(_unitOfWorkMock.Object, _mapperMock.Object);
+
+        // Act
+        await _bookService.Add(validBookRequest, CancellationToken.None);
+
+        // Assert
+        _unitOfWorkMock.Verify(u => u.BookRepository.AddAsync(It.Is<Book>(b =>
+            b.Title == validBookRequest.Title &&
+            b.Description == validBookRequest.Description &&
+            b.Price == validBookRequest.Price)), Times.Once);
+        _unitOfWorkMock.Verify(u => u.ExecuteTransactionAsync(It.IsAny<Func<Task>>(), CancellationToken.None), Times.Once);
+    }
+
 }

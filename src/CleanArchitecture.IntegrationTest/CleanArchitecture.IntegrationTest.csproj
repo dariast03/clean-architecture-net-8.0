@@ -33,6 +33,10 @@
     <PackageReference Include="Xunit.Extensions.AssemblyFixture" />
   </ItemGroup>
 
+    <ItemGroup>
+    <ProjectReference Include="..\CleanArchitecture\CleanArchitecture.csproj" />
+  </ItemGroup>
+
   <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>

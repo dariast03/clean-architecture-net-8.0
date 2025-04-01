@@ -14,7 +14,13 @@ public class BookTest : IClassFixture<InjectionFixture>
     public async Task Book_ShouldSuccess_WhenGetBookById()
     {
         // Act
-        //var result = await _bookClient.Get("1");
+        var result = await _bookClient.Get("1");
+
+        // print result in console in json string
+        Console.WriteLine(result.ToString());
+        
+    
+        Console.WriteLine("Debug: Retrieved book result.");
 
         // Assert
         Assert.True(true);

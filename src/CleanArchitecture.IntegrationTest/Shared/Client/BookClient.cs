@@ -13,7 +13,7 @@ public class BookClient : IBookClient
 
     public async Task<ApiResponse<object, string>> Get(string id)
     {
-        var response = await _client.GetAsync($"/{id}");
+        var response = await _client.GetAsync($"/api/Book/{id}");
 
         if (response.IsSuccessStatusCode)
         {
@@ -37,7 +37,7 @@ public class BookClient : IBookClient
 
     public async Task<ApiResponse<object, string>> Get(int pageIndex, int pageSize)
     {
-        var response = await _client.GetAsync($"/Book?pageIndex={pageIndex}&pageSize={pageSize}");
+        var response = await _client.GetAsync($"/api/Book?pageIndex={pageIndex}&pageSize={pageSize}");
 
         if (response.IsSuccessStatusCode)
         {
